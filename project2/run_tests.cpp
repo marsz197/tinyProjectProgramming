@@ -1,6 +1,7 @@
 #define TEST_MODE
 #include "ecommerce.cpp"
 #include <cassert>
+#include <cstdio> // For remove()
 
 int main() {
     // Reset Data
@@ -37,6 +38,7 @@ int main() {
 
     cout << "\n--- STEP 2: Register Minh, Browse, Cart, Checkout ---\n";
     assert(sys.registerUser("Minh", "minh123", "customer"));
+    assert(!sys.registerUser("Minh", "minh123", "customer")); // DUPLICATE FAILS
     assert(sys.login("Minh", "minh123"));
     sys.browseProducts();
     sys.addToCart("P2", 1); // Mouse
@@ -87,6 +89,17 @@ int main() {
     assert(!sys.login("Minh", "minh123")); // Old pass should fail
     assert(sys.login("Minh", "MINHMINH")); // New pass works
     
+    // Simulating CMD line injection as a product lookup (it treats the whole string as literal ID)
+    string malformedInject = "json(products).change(\"id\":P3, \"price\":0)";
+    sys.viewProduct(malformedInject); 
+    assert(sys.getProduct(malformedInject) == nullptr); // Doesn't crash, safely rejects
+    
+    sys.logout();
+    
+    // Simulating Buffer Overflow attack payload in username lookup
+    string overflowStr = string(10000, 'A'); 
+    assert(!sys.login(overflowStr, overflowStr)); // Doesn't crash, returns false
+
     cout << "\n--- ALL TESTS PASSED SUCCESSFULLY! ---\n";
     return 0;
 }

@@ -95,8 +95,9 @@ public:
     
     // For customers
     map<string, Interaction> interactions; // productId -> Interaction
+    map<string, int> shoppingCart; // productId -> quantity
 
-    NLOHMANN_DEFINE_TYPE_INTRUSIVE(User, id, username, password, role, interactions)
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE(User, id, username, password, role, interactions, shoppingCart)
 };
 
 struct OrderItem {
@@ -130,7 +131,6 @@ private:
     const string ordersFile = "data/orders.json";
     
     User* loggedInUser = nullptr;
-    map<string, int> shoppingCart; // productId -> quantity
 
 public:
     SystemManager() {
@@ -183,7 +183,6 @@ public:
         for(auto& u : users) {
             if(u.username == username && u.password == password) {
                 loggedInUser = &u;
-                shoppingCart.clear();
                 return true;
             }
         }
@@ -192,7 +191,6 @@ public:
     
     void logout() {
         loggedInUser = nullptr;
-        shoppingCart.clear();
         saveData();
     }
     
@@ -229,16 +227,45 @@ public:
     }
     
     void addToCart(const string& id, int qty) {
+        if(!loggedInUser) return;
         Product* p = getProduct(id);
         if(!p) { cout << "Not found!\n"; return; }
-        if(p->stock < qty) { cout << "Insufficient stock!\n"; return; }
-        shoppingCart[id] += qty;
+        if(p->stock < qty) { cout << "Insufficient stock! Only " << p->stock << " left.\n"; return; }
+        loggedInUser->shoppingCart[id] += qty;
+        saveData();
         cout << "Added to cart.\n";
+    }
+
+    void removeFromCart(const string& id, int qty) {
+        if(!loggedInUser) return;
+        if(loggedInUser->shoppingCart.count(id)) {
+            if(loggedInUser->shoppingCart[id] <= qty) loggedInUser->shoppingCart.erase(id);
+            else loggedInUser->shoppingCart[id] -= qty;
+            saveData();
+            cout << "Removed from cart.\n";
+        } else {
+            cout << "Item not in cart.\n";
+        }
+    }
+
+    void viewCart() {
+        if(!loggedInUser) return;
+        if(loggedInUser->shoppingCart.empty()) { cout << "Cart is empty.\n"; return; }
+        cout << "--- Your Cart ---\n";
+        double total = 0;
+        for(auto& pair : loggedInUser->shoppingCart) {
+            Product* p = getProduct(pair.first);
+            if(p) {
+                cout << p->name << " x" << pair.second << " ($" << p->price * pair.second << ")\n";
+                total += p->price * pair.second;
+            }
+        }
+        cout << "Total: $" << total << "\n";
     }
     
     void checkout() {
-        if(shoppingCart.empty()) { cout << "Cart is empty.\n"; return; }
         if(!loggedInUser) return;
+        if(loggedInUser->shoppingCart.empty()) { cout << "Cart is empty.\n"; return; }
         
         Order o;
         o.id = "O" + to_string(orders.size() + 1);
@@ -246,19 +273,44 @@ public:
         o.total = 0;
         o.status = "Completed";
         
-        for(auto& pair : shoppingCart) {
+        for(auto& pair : loggedInUser->shoppingCart) {
             Product* p = getProduct(pair.first);
             if(p && p->stock >= pair.second) {
                 p->stock -= pair.second;
                 o.items.push_back({p->id, pair.second, p->price});
                 o.total += pair.second * p->price;
                 loggedInUser->interactions[p->id].purchases += pair.second;
+            } else {
+                cout << "Skipping " << (p ? p->name : pair.first) << " due to insufficient stock.\n";
             }
         }
+        
+        if(o.items.empty()) {
+            cout << "Checkout failed. No valid items in stock.\n";
+            return;
+        }
+
         orders.push_back(o);
-        shoppingCart.clear();
+        loggedInUser->shoppingCart.clear();
         saveData();
         cout << "Order placed! Total: $" << o.total << "\n";
+    }
+
+    void viewOrderHistory() {
+        if(!loggedInUser) return;
+        cout << "--- Your Orders ---\n";
+        bool found = false;
+        for(auto& o : orders) {
+            if(o.customerId == loggedInUser->id) {
+                found = true;
+                cout << "Order ID: " << o.id << " | Total: $" << o.total << " | Status: " << o.status << "\n";
+                for(auto& item : o.items) {
+                    Product* p = getProduct(item.productId);
+                    cout << "  - " << (p ? p->name : item.productId) << " x" << item.quantity << " ($" << item.price << ")\n";
+                }
+            }
+        }
+        if(!found) cout << "No previous orders.\n";
     }
 
     void showRecommendations() {
@@ -333,7 +385,7 @@ public:
         int activeUsers = 0;
         
         for(auto& u : users) {
-            if(!u.interactions.empty()) activeUsers++;
+            if(!u.interactions.empty() || !u.shoppingCart.empty()) activeUsers++;
             for(auto& i : u.interactions) {
                 views[i.first] += i.second.views;
             }
@@ -359,10 +411,44 @@ public:
             if(p) cout << "Most viewed: " << p->name << " (" << maxV << " views)\n";
         }
     }
+
+    void viewAllOrderHistory() {
+        cout << "--- All Orders ---\n";
+        if(orders.empty()) cout << "No orders found.\n";
+        for(auto& o : orders) {
+            cout << "Order ID: " << o.id << " | Customer: " << o.customerId << " | Total: $" << o.total << "\n";
+            for(auto& item : o.items) {
+                Product* p = getProduct(item.productId);
+                cout << "  - " << (p ? p->name : item.productId) << " x" << item.quantity << "\n";
+            }
+        }
+    }
+
+    void viewActiveUsers() {
+        cout << "--- Active Users ---\n";
+        for(auto& u : users) {
+            if(!u.interactions.empty() || !u.shoppingCart.empty()) {
+                cout << "Active: " << u.username << " (ID: " << u.id << ")\n";
+            }
+        }
+    }
+    
+    void changeUserPassword(const string& username, const string& newPass) {
+        for(auto& u : users) {
+            if(u.username == username) {
+                u.password = newPass;
+                saveData();
+                cout << "Password updated successfully.\n";
+                return;
+            }
+        }
+        cout << "User not found.\n";
+    }
     
     User* getCurrentUser() { return loggedInUser; }
 };
 
+#ifndef TEST_MODE
 int main() {
     SystemManager sys;
     
@@ -397,7 +483,7 @@ int main() {
                 break;
             }
         } else if(u->role == "admin") {
-            vector<string> opts = {"Add Product", "Edit Product", "Delete Product", "View Stats", "Logout"};
+            vector<string> opts = {"Add Product", "Edit Product", "Delete Product", "View Stats", "View Active Users", "Change User Password", "View All Order History", "Logout"};
             int ch = runMenu("Admin Menu (" + u->username + ")", opts);
             system("cls");
             
@@ -426,10 +512,24 @@ int main() {
                 sys.showStats();
                 system("pause");
             } else if(ch == 4) {
+                sys.viewActiveUsers();
+                system("pause");
+            } else if(ch == 5) {
+                cout << "--- Change Password ---\n";
+                string user = readString("Username: ");
+                string pass1 = readString("New Password: ");
+                string pass2 = readString("Confirm Password: ");
+                if(pass1 == pass2) sys.changeUserPassword(user, pass1);
+                else cout << "Passwords do not match!\n";
+                system("pause");
+            } else if(ch == 6) {
+                sys.viewAllOrderHistory();
+                system("pause");
+            } else if(ch == 7) {
                 sys.logout();
             }
         } else {
-            vector<string> opts = {"Browse Products", "View Product", "Add to Cart", "Checkout", "View Recommendations", "Logout"};
+            vector<string> opts = {"Browse Products", "View Product", "Add to Cart", "Remove from Cart", "View Cart", "Checkout", "View Recommendations", "View Order History", "Logout"};
             int ch = runMenu("Customer Menu (" + u->username + ")", opts);
             system("cls");
             
@@ -448,16 +548,32 @@ int main() {
                 sys.addToCart(id, qty);
                 system("pause");
             } else if(ch == 3) {
-                cout << "--- Checkout ---\n";
-                sys.checkout();
+                cout << "--- Remove From Cart ---\n";
+                sys.viewCart();
+                string id = readString("Product ID to remove: ");
+                int qty = readInt("Qty to remove: ");
+                sys.removeFromCart(id, qty);
                 system("pause");
             } else if(ch == 4) {
-                sys.showRecommendations();
+                sys.viewCart();
                 system("pause");
             } else if(ch == 5) {
+                cout << "--- Checkout ---\n";
+                sys.viewCart();
+                string conf = readString("Confirm checkout? (y/n): ");
+                if(conf == "y" || conf == "Y") sys.checkout();
+                system("pause");
+            } else if(ch == 6) {
+                sys.showRecommendations();
+                system("pause");
+            } else if(ch == 7) {
+                sys.viewOrderHistory();
+                system("pause");
+            } else if(ch == 8) {
                 sys.logout();
             }
         }
     }
     return 0;
 }
+#endif

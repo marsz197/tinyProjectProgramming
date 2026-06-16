@@ -16,7 +16,7 @@ struct Instance {
 };
 
 int main() {
-    string filePath = "D:\\2nd Year\\2nd Sem\\Programming 2\\machine.data";
+    string filePath = "D:\\2nd Year\\2nd Sem\\Programming 2\\tinyProjectProgramming\\project1\\machine.data";
     ifstream file(filePath);
     if (!file.is_open()) {
         cerr << "Error opening file: " << filePath << endl;

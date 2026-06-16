@@ -4,13 +4,41 @@
         "interactions": {},
         "password": "admin",
         "role": "admin",
+        "shoppingCart": {},
         "username": "admin"
     },
     {
         "id": "U2",
-        "interactions": {},
+        "interactions": {
+            "P1": {
+                "purchases": 6,
+                "views": 0
+            },
+            "P3": {
+                "purchases": 0,
+                "views": 0
+            }
+        },
         "password": "123",
         "role": "customer",
+        "shoppingCart": {},
         "username": "john"
+    },
+    {
+        "id": "U3",
+        "interactions": {
+            "P1": {
+                "purchases": 2,
+                "views": 0
+            },
+            "P2": {
+                "purchases": 1,
+                "views": 0
+            }
+        },
+        "password": "MINHMINH",
+        "role": "customer",
+        "shoppingCart": {},
+        "username": "Minh"
     }
 ]

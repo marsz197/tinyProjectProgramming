@@ -4,10 +4,68 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <conio.h> // For TUI interactive input
 #include "json.hpp"
 
 using json = nlohmann::json;
 using namespace std;
+
+// --- Helper Functions for TUI & Input ---
+
+string readString(const string& prompt) {
+    cout << prompt;
+    string res;
+    getline(cin >> ws, res);
+    return res;
+}
+
+double readDouble(const string& prompt) {
+    cout << prompt;
+    double res;
+    cin >> res;
+    if(cin.fail()) { cin.clear(); cin.ignore(10000, '\n'); return 0.0; }
+    return res;
+}
+
+int readInt(const string& prompt) {
+    cout << prompt;
+    int res;
+    cin >> res;
+    if(cin.fail()) { cin.clear(); cin.ignore(10000, '\n'); return 0; }
+    return res;
+}
+
+int runMenu(const string& title, const vector<string>& options) {
+    int selected = 0;
+    while(true) {
+        system("cls"); // Clear screen for Windows
+        cout << "==========================================\n";
+        cout << "           " << title << "\n";
+        cout << "==========================================\n\n";
+        
+        for(size_t i = 0; i < options.size(); ++i) {
+            if((int)i == selected) {
+                cout << "  -> [ \x1b[7m" << options[i] << "\x1b[0m ]\n"; // Reverse video highlight
+            } else {
+                cout << "     " << options[i] << "\n";
+            }
+        }
+        cout << "\n------------------------------------------\n";
+        cout << "Use Up/Down arrows to navigate, Enter to select.\n";
+        
+        int c = _getch();
+        if(c == 224 || c == 0) { // Arrow key prefix
+            c = _getch();
+            if(c == 72) { // Up
+                selected = (selected - 1 + options.size()) % options.size();
+            } else if(c == 80) { // Down
+                selected = (selected + 1) % options.size();
+            }
+        } else if(c == 13) { // Enter
+            return selected;
+        }
+    }
+}
 
 // --- Data Structures ---
 
@@ -154,16 +212,16 @@ public:
 
     // Customer actions
     void browseProducts() {
-        cout << "--- Products ---" << endl;
+        cout << "--- Products ---\n";
         for(auto& p : products) {
-            cout << p.id << " | " << p.name << " | $" << p.price << " | Stock: " << p.stock << endl;
+            cout << p.id << " | " << p.name << " | $" << p.price << " | Stock: " << p.stock << "\n";
         }
     }
     
     void viewProduct(const string& id) {
         Product* p = getProduct(id);
-        if(!p) { cout << "Not found!" << endl; return; }
-        cout << "Viewing: " << p->name << " (" << p->category << ") - $" << p->price << endl;
+        if(!p) { cout << "Not found!\n"; return; }
+        cout << "Viewing: " << p->name << " (" << p->category << ") - $" << p->price << "\n";
         if(loggedInUser && loggedInUser->role == "customer") {
             loggedInUser->interactions[id].views++;
             saveData();
@@ -172,14 +230,14 @@ public:
     
     void addToCart(const string& id, int qty) {
         Product* p = getProduct(id);
-        if(!p) { cout << "Not found!" << endl; return; }
-        if(p->stock < qty) { cout << "Insufficient stock!" << endl; return; }
+        if(!p) { cout << "Not found!\n"; return; }
+        if(p->stock < qty) { cout << "Insufficient stock!\n"; return; }
         shoppingCart[id] += qty;
-        cout << "Added to cart." << endl;
+        cout << "Added to cart.\n";
     }
     
     void checkout() {
-        if(shoppingCart.empty()) { cout << "Cart is empty." << endl; return; }
+        if(shoppingCart.empty()) { cout << "Cart is empty.\n"; return; }
         if(!loggedInUser) return;
         
         Order o;
@@ -200,7 +258,7 @@ public:
         orders.push_back(o);
         shoppingCart.clear();
         saveData();
-        cout << "Order placed! Total: $" << o.total << endl;
+        cout << "Order placed! Total: $" << o.total << "\n";
     }
 
     void showRecommendations() {
@@ -226,10 +284,10 @@ public:
         }
         sort(scores.begin(), scores.end(), [](auto& a, auto& b){ return a.second > b.second; });
         
-        cout << "--- Recommended for you ---" << endl;
+        cout << "--- Recommended for you ---\n";
         for(int i=0; i<min(5, (int)scores.size()); i++) {
             if(scores[i].second > 0)
-                cout << scores[i].first << " (Score: " << scores[i].second << ")" << endl;
+                cout << scores[i].first << " (Score: " << scores[i].second << ")\n";
         }
     }
 
@@ -243,7 +301,7 @@ public:
         p.stock = stock;
         products.push_back(p);
         saveData();
-        cout << "Product added." << endl;
+        cout << "Product added.\n";
     }
     
     void editProduct(const string& id, double price, int stock) {
@@ -266,9 +324,9 @@ public:
     }
     
     void showStats() {
-        cout << "Total Users: " << users.size() << endl;
-        cout << "Total Products: " << products.size() << endl;
-        cout << "Total Orders: " << orders.size() << endl;
+        cout << "Total Users: " << users.size() << "\n";
+        cout << "Total Products: " << products.size() << "\n";
+        cout << "Total Orders: " << orders.size() << "\n";
         
         map<string, int> sold;
         map<string, int> views;
@@ -285,20 +343,20 @@ public:
             for(auto& i : o.items) sold[i.productId] += i.quantity;
         }
         
-        cout << "Active Users: " << activeUsers << endl;
+        cout << "Active Users: " << activeUsers << "\n";
         
         string bestP = ""; int maxS = 0;
         for(auto& s : sold) { if(s.second > maxS) { maxS = s.second; bestP = s.first; } }
         if(maxS > 0) {
             Product* p = getProduct(bestP);
-            if(p) cout << "Best selling: " << p->name << " (" << maxS << " sold)" << endl;
+            if(p) cout << "Best selling: " << p->name << " (" << maxS << " sold)\n";
         }
         
         string mostV = ""; int maxV = 0;
         for(auto& v : views) { if(v.second > maxV) { maxV = v.second; mostV = v.first; } }
         if(maxV > 0) {
             Product* p = getProduct(mostV);
-            if(p) cout << "Most viewed: " << p->name << " (" << maxV << " views)" << endl;
+            if(p) cout << "Most viewed: " << p->name << " (" << maxV << " views)\n";
         }
     }
     
@@ -320,57 +378,85 @@ int main() {
     while(true) {
         User* u = sys.getCurrentUser();
         if(!u) {
-            cout << "\n1. Login\n2. Register\n3. Exit\n> ";
-            int ch; 
-            if (!(cin >> ch)) break;
-            if(ch == 1) {
-                string user, pass;
-                cout << "Username: "; cin >> user;
-                cout << "Password: "; cin >> pass;
-                if(!sys.login(user, pass)) cout << "Failed!" << endl;
+            vector<string> opts = {"Login", "Register", "Exit"};
+            int ch = runMenu("Main Menu", opts);
+            system("cls");
+            
+            if(ch == 0) {
+                cout << "--- Login ---\n";
+                string user = readString("Username: ");
+                string pass = readString("Password: ");
+                if(!sys.login(user, pass)) { cout << "Login Failed!\n"; system("pause"); }
+            } else if(ch == 1) {
+                cout << "--- Register ---\n";
+                string user = readString("Username: ");
+                string pass = readString("Password: ");
+                if(sys.registerUser(user, pass, "customer")) { cout << "Registered successfully!\n"; system("pause"); }
+                else { cout << "Username already taken!\n"; system("pause"); }
             } else if(ch == 2) {
-                string user, pass;
-                cout << "Username: "; cin >> user;
-                cout << "Password: "; cin >> pass;
-                if(sys.registerUser(user, pass, "customer")) cout << "Registered!" << endl;
-                else cout << "Username taken!" << endl;
-            } else break;
+                break;
+            }
         } else if(u->role == "admin") {
-            cout << "\n--- Admin Menu ---\n1. Add Product\n2. Edit Product\n3. Delete Product\n4. View Stats\n5. Logout\n> ";
-            int ch; cin >> ch;
-            if(ch == 1) {
-                string name, cat; double price; int stock;
-                cout << "Name: "; cin >> name;
-                cout << "Category: "; cin >> cat;
-                cout << "Price: "; cin >> price;
-                cout << "Stock: "; cin >> stock;
+            vector<string> opts = {"Add Product", "Edit Product", "Delete Product", "View Stats", "Logout"};
+            int ch = runMenu("Admin Menu (" + u->username + ")", opts);
+            system("cls");
+            
+            if(ch == 0) {
+                cout << "--- Add Product ---\n";
+                string name = readString("Name: ");
+                string cat = readString("Category: ");
+                double price = readDouble("Price: ");
+                int stock = readInt("Stock: ");
                 sys.addProduct(name, cat, price, stock);
-            } else if(ch == 2) {
-                string id; double price; int stock;
-                cout << "ID: "; cin >> id;
-                cout << "New Price: "; cin >> price;
-                cout << "New Stock: "; cin >> stock;
+                system("pause");
+            } else if(ch == 1) {
+                cout << "--- Edit Product ---\n";
+                string id = readString("Product ID: ");
+                double price = readDouble("New Price: ");
+                int stock = readInt("New Stock: ");
                 sys.editProduct(id, price, stock);
-            } else if(ch == 3) {
-                string id; cout << "ID: "; cin >> id;
+                system("pause");
+            } else if(ch == 2) {
+                cout << "--- Delete Product ---\n";
+                string id = readString("Product ID: ");
                 sys.deleteProduct(id);
-            } else if(ch == 4) sys.showStats();
-            else sys.logout();
-        } else {
-            cout << "\n--- Customer Menu ---\n1. Browse Products\n2. View Product\n3. Add to Cart\n4. Checkout\n5. View Recommendations\n6. Logout\n> ";
-            int ch; cin >> ch;
-            if(ch == 1) sys.browseProducts();
-            else if(ch == 2) {
-                string id; cout << "Product ID: "; cin >> id;
-                sys.viewProduct(id);
+                system("pause");
             } else if(ch == 3) {
-                string id; int qty;
-                cout << "Product ID: "; cin >> id;
-                cout << "Qty: "; cin >> qty;
+                cout << "--- System Stats ---\n";
+                sys.showStats();
+                system("pause");
+            } else if(ch == 4) {
+                sys.logout();
+            }
+        } else {
+            vector<string> opts = {"Browse Products", "View Product", "Add to Cart", "Checkout", "View Recommendations", "Logout"};
+            int ch = runMenu("Customer Menu (" + u->username + ")", opts);
+            system("cls");
+            
+            if(ch == 0) {
+                sys.browseProducts();
+                system("pause");
+            } else if(ch == 1) {
+                cout << "--- View Product ---\n";
+                string id = readString("Product ID: ");
+                sys.viewProduct(id);
+                system("pause");
+            } else if(ch == 2) {
+                cout << "--- Add To Cart ---\n";
+                string id = readString("Product ID: ");
+                int qty = readInt("Qty: ");
                 sys.addToCart(id, qty);
-            } else if(ch == 4) sys.checkout();
-            else if(ch == 5) sys.showRecommendations();
-            else sys.logout();
+                system("pause");
+            } else if(ch == 3) {
+                cout << "--- Checkout ---\n";
+                sys.checkout();
+                system("pause");
+            } else if(ch == 4) {
+                sys.showRecommendations();
+                system("pause");
+            } else if(ch == 5) {
+                sys.logout();
+            }
         }
     }
     return 0;

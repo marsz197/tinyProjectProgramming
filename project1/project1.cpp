@@ -252,24 +252,24 @@ public:
         int n = mNumRows;
         Matrix augmented(n, 2*n);
         // Create the augmented matrix [A | I]
-        for (int i = 0; i < n; ++i){
-            for (int j = 0; j < n; ++j){
-                augmented(i, j) = mData[i][j];
+        for (int i = 1; i <= n; ++i){
+            for (int j = 1; j <= n; ++j){
+                augmented(i, j) = mData[i-1][j-1];
             }
-            for (int j = n; j < 2*n; ++j){
+            for (int j = n + 1; j <= 2*n; ++j){
                 augmented(i, j) = (i == (j - n)) ? 1.0 : 0.0; // Identity matrix
             }
         }
         // Perform Gaussian elimination
-        for (int i = 0; i < n; ++i){
+        for (int i = 1; i <= n; ++i){
             int maxRow = i;
-            for (int k = i + 1; k < n; ++k){
+            for (int k = i + 1; k <= n; ++k){
                 if (abs(augmented(k, i)) > abs(augmented(maxRow, i))){
                     maxRow = k;
                 }
             }
             if (maxRow != i){
-                for (int j = 0; j < 2*n; ++j){
+                for (int j = 1; j <= 2*n; ++j){
                     swap(augmented(i, j), augmented(maxRow, j));
                 }
             }
@@ -279,14 +279,14 @@ public:
                 throw runtime_error("Matrix is singular and cannot be inverted.");
             }
             // Normalize the pivot row
-            for (int j = 0; j < 2*n; ++j){
+            for (int j = 1; j <= 2*n; ++j){
                 augmented(i, j) /= pivot;
             }
             // Eliminate other rows
-            for (int k = 0; k < n; ++k){
+            for (int k = 1; k <= n; ++k){
                 if (k != i){
                     double factor = augmented(k, i);
-                    for (int j = 0; j < 2*n; ++j){
+                    for (int j = 1; j <= 2*n; ++j){
                         augmented(k, j) -= factor * augmented(i, j);
                     }
                 }
@@ -294,8 +294,8 @@ public:
         }
         // Extract the inverse from the augmented matrix
         Matrix inverse(n, n);
-        for (int i = 0; i < n; ++i){
-            for (int j = 0; j < n; ++j){
+        for (int i = 1; i <= n; ++i){
+            for (int j = 1; j <= n; ++j){
                 inverse(i, j) = augmented(i, j + n);
             }
         }
@@ -306,7 +306,7 @@ public:
         Matrix transposed(mNumCols, mNumRows);
         for (int i = 0; i < mNumRows; ++i){
             for (int j = 0; j < mNumCols; ++j){
-                transposed(j, i) = mData[i][j];
+                transposed(j+1, i+1) = mData[i][j];
             }
         }
         return transposed;
@@ -316,6 +316,19 @@ public:
         Matrix ATA = AT * (*this);
         Matrix ATA_inv = ATA.inverse();
         Matrix result = ATA_inv * AT;
+        return result;
+    }
+    
+    Matrix tikhonovInverse(double lambda) const{
+        Matrix AT = this->transpose();
+        Matrix ATA = AT * (*this);
+        Matrix lambdaI(ATA.numRows(), ATA.numCols());
+        for(int i = 1; i <= ATA.numRows(); ++i){
+            lambdaI(i, i) = lambda;
+        }
+        Matrix ATA_plus_lambdaI = ATA + lambdaI;
+        Matrix ATA_plus_lambdaI_inv = ATA_plus_lambdaI.inverse();
+        Matrix result = ATA_plus_lambdaI_inv * AT;
         return result;
     }   
 };

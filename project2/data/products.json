@@ -1,0 +1,30 @@
+[
+    {
+        "category": "Electronics",
+        "id": "P1",
+        "name": "Laptop",
+        "price": 999.99,
+        "stock": 15
+    },
+    {
+        "category": "Electronics",
+        "id": "P2",
+        "name": "Mouse",
+        "price": 49.99,
+        "stock": 49
+    },
+    {
+        "category": "Furniture",
+        "id": "P3",
+        "name": "Desk",
+        "price": 199.99,
+        "stock": 5
+    },
+    {
+        "category": "Electronics",
+        "id": "P4",
+        "name": "Dell Latt 7850",
+        "price": 299.99,
+        "stock": 1
+    }
+]

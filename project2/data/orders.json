@@ -1,0 +1,38 @@
+[
+    {
+        "customerId": "U3",
+        "id": "O1",
+        "items": [
+            {
+                "price": 999.99,
+                "productId": "P1",
+                "quantity": 2
+            },
+            {
+                "price": 49.99,
+                "productId": "P2",
+                "quantity": 1
+            }
+        ],
+        "status": "Completed",
+        "total": 2049.97
+    },
+    {
+        "customerId": "U2",
+        "id": "O2",
+        "items": [
+            {
+                "price": 999.99,
+                "productId": "P1",
+                "quantity": 6
+            },
+            {
+                "price": 199.99,
+                "productId": "P3",
+                "quantity": 0
+            }
+        ],
+        "status": "Completed",
+        "total": 5999.9400000000005
+    }
+]

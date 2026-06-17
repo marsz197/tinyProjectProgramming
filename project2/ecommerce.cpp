@@ -4,7 +4,8 @@
 #include <vector>
 #include <map>
 #include <algorithm>
-#include <conio.h> // For TUI interactive input
+#include <ncurses.h>
+#include <bits/stdc++.h>
 #include "json.hpp"
 
 using json = nlohmann::json;
@@ -53,9 +54,9 @@ int runMenu(const string& title, const vector<string>& options) {
         cout << "\n------------------------------------------\n";
         cout << "Use Up/Down arrows to navigate, Enter to select.\n";
         
-        int c = _getch();
+        int c = getch();
         if(c == 224 || c == 0) { // Arrow key prefix
-            c = _getch();
+            c = getch();
             if(c == 72) { // Up
                 selected = (selected - 1 + options.size()) % options.size();
             } else if(c == 80) { // Down
@@ -130,10 +131,13 @@ private:
     const string productsFile = "data/products.json";
     const string ordersFile = "data/orders.json";
     
-    User* loggedInUser = nullptr;
+    string loggedInUserId = "";
 
 public:
     SystemManager() {
+        if (!filesystem::exists("data")) {
+            filesystem::create_directory("data");
+        }
         loadData();
     }
     
@@ -179,10 +183,13 @@ public:
     }
 
     // Auth
-    bool login(const string& username, const string& password) {
+    bool login(string username, const string& password) {
+        for (auto& x : username) {
+            x = tolower(x);
+        }
         for(auto& u : users) {
             if(u.username == username && u.password == password) {
-                loggedInUser = &u;
+                loggedInUserId = u.id; // Gán ID vào biến string
                 return true;
             }
         }
@@ -190,11 +197,14 @@ public:
     }
     
     void logout() {
-        loggedInUser = nullptr;
+        loggedInUserId = "";
         saveData();
     }
     
-    bool registerUser(const string& username, const string& password, const string& role) {
+    bool registerUser(string username, const string& password, const string& role) {
+        for (auto& x : username) {
+            x = tolower(x);
+        }
         for(auto& u : users) {
             if(u.username == username) return false; // Exists
         }
@@ -220,27 +230,32 @@ public:
         Product* p = getProduct(id);
         if(!p) { cout << "Not found!\n"; return; }
         cout << "Viewing: " << p->name << " (" << p->category << ") - $" << p->price << "\n";
-        if(loggedInUser && loggedInUser->role == "customer") {
-            loggedInUser->interactions[id].views++;
+        User* u = getCurrentUser();
+        if(u && u->role == "customer") {
+            u->interactions[id].views++;
             saveData();
         }
     }
     
     void addToCart(const string& id, int qty) {
-        if(!loggedInUser) return;
+        if (qty <=0){ cout << "Quantity must be greater than zero.\n"; return; }
+        User* user = getCurrentUser();
+        if(!user) return;
         Product* p = getProduct(id);
         if(!p) { cout << "Not found!\n"; return; }
-        if(p->stock < qty) { cout << "Insufficient stock! Only " << p->stock << " left.\n"; return; }
-        loggedInUser->shoppingCart[id] += qty;
+        int currentCartQty = user->shoppingCart[id];
+        if(p->stock < (currentCartQty + qty)) { cout << "Insufficient stock! Only " << p->stock << " left.\n"; return; }
+        user->shoppingCart[id] += qty;
         saveData();
         cout << "Added to cart.\n";
     }
 
     void removeFromCart(const string& id, int qty) {
-        if(!loggedInUser) return;
-        if(loggedInUser->shoppingCart.count(id)) {
-            if(loggedInUser->shoppingCart[id] <= qty) loggedInUser->shoppingCart.erase(id);
-            else loggedInUser->shoppingCart[id] -= qty;
+        User* u = getCurrentUser();
+        if(!u) return;
+        if(u->shoppingCart.count(id)) {
+            if(u->shoppingCart[id] <= qty) u->shoppingCart.erase(id);
+            else u->shoppingCart[id] -= qty;
             saveData();
             cout << "Removed from cart.\n";
         } else {
@@ -249,11 +264,12 @@ public:
     }
 
     void viewCart() {
-        if(!loggedInUser) return;
-        if(loggedInUser->shoppingCart.empty()) { cout << "Cart is empty.\n"; return; }
+        User* u = getCurrentUser();
+        if(!u) return;
+        if(u->shoppingCart.empty()) { cout << "Cart is empty.\n"; return; }
         cout << "--- Your Cart ---\n";
         double total = 0;
-        for(auto& pair : loggedInUser->shoppingCart) {
+        for(auto& pair : u->shoppingCart) {
             Product* p = getProduct(pair.first);
             if(p) {
                 cout << p->name << " x" << pair.second << " ($" << p->price * pair.second << ")\n";
@@ -264,22 +280,23 @@ public:
     }
     
     void checkout() {
-        if(!loggedInUser) return;
-        if(loggedInUser->shoppingCart.empty()) { cout << "Cart is empty.\n"; return; }
+        User* u = getCurrentUser();
+        if(!u) return;
+        if(u->shoppingCart.empty()) { cout << "Cart is empty.\n"; return; }
         
         Order o;
         o.id = "O" + to_string(orders.size() + 1);
-        o.customerId = loggedInUser->id;
+        o.customerId = u->id;
         o.total = 0;
         o.status = "Completed";
         
-        for(auto& pair : loggedInUser->shoppingCart) {
+        for(auto& pair : u->shoppingCart) {
             Product* p = getProduct(pair.first);
             if(p && p->stock >= pair.second) {
                 p->stock -= pair.second;
                 o.items.push_back({p->id, pair.second, p->price});
                 o.total += pair.second * p->price;
-                loggedInUser->interactions[p->id].purchases += pair.second;
+                u->interactions[p->id].purchases += pair.second;
             } else {
                 cout << "Skipping " << (p ? p->name : pair.first) << " due to insufficient stock.\n";
             }
@@ -291,17 +308,18 @@ public:
         }
 
         orders.push_back(o);
-        loggedInUser->shoppingCart.clear();
+        u->shoppingCart.clear();
         saveData();
         cout << "Order placed! Total: $" << o.total << "\n";
     }
 
     void viewOrderHistory() {
-        if(!loggedInUser) return;
+        User* u = getCurrentUser();
+        if(!u) return;
         cout << "--- Your Orders ---\n";
         bool found = false;
         for(auto& o : orders) {
-            if(o.customerId == loggedInUser->id) {
+            if(o.customerId == u->id) {
                 found = true;
                 cout << "Order ID: " << o.id << " | Total: $" << o.total << " | Status: " << o.status << "\n";
                 for(auto& item : o.items) {
@@ -314,18 +332,19 @@ public:
     }
 
     void showRecommendations() {
-        if(!loggedInUser || loggedInUser->role != "customer") return;
+        User* u = getCurrentUser();
+        if(!u || u->role != "customer") return;
         
         // score = view_count * 0.2 + purchase_count * 0.8 + category_bonus
         vector<pair<string, double>> scores;
         for(auto& p : products) {
             double score = 0.0;
-            if(loggedInUser->interactions.count(p.id)) {
-                score += loggedInUser->interactions[p.id].views * 0.2;
-                score += loggedInUser->interactions[p.id].purchases * 0.8;
+            if(u->interactions.count(p.id)) {
+                score += u->interactions[p.id].views * 0.2;
+                score += u->interactions[p.id].purchases * 0.8;
             }
             // Add a simple category bonus (e.g. +1.0 if they ever bought from this category)
-            for(auto& interact : loggedInUser->interactions) {
+            for(auto& interact : u->interactions) {
                 Product* ip = getProduct(interact.first);
                 if(ip && ip->category == p.category && interact.second.purchases > 0) {
                     score += 1.0;
@@ -445,7 +464,13 @@ public:
         cout << "User not found.\n";
     }
     
-    User* getCurrentUser() { return loggedInUser; }
+    User* getCurrentUser() {
+        if (loggedInUserId.empty()) return nullptr;
+        for (auto& u : users) {
+            if (u.id == loggedInUserId) return &u;
+        }
+        return nullptr;
+    }
 };
 
 #ifndef TEST_MODE

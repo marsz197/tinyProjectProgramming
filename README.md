@@ -1,7 +1,9 @@
 # Tiny Projects Implementation
 
 This repository contains the completed C++ implementations for the **Linear System & Machine Learning** module (Project 1 & 1b) and the **Smart E-Commerce System** module (Project 2).
-
+Our Group consist of 2 members:
+Lê Tấn Trường - 104240110
+Đặng Ngọc Minh - 104240011
 ## Project Structure
 
 ### Project 1a (`project1/project1.cpp`)
